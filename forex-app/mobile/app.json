@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Forex App",
+    "slug": "forex-app",
+    "scheme": "forexapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0B1120"
+    },
+    "android": {
+      "package": "com.yourcompany.forexapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B1120"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.yourcompany.forexapp"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
