@@ -32,7 +32,7 @@ router.get('/links', requireAuth, (req, res) => {
 const POSTBACK_SECRET = process.env.AVA_POSTBACK_SECRET || 'change_me_to_a_random_string';
 
 router.get('/postback', async (req, res) => {
-  if (req.query.secret !== POSTBACK_SECRET) {
+if (req.query.custom1 !== POSTBACK_SECRET) {
     return res.status(403).send('Forbidden');
   }
 
