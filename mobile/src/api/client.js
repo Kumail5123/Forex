@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Point this at your backend. Use your machine's LAN IP (not localhost)
 // when testing on a physical device via Expo Go.
-export const API_BASE_URL = 'http://localhost:4000/api';
+export const API_BASE_URL = 'https://forex-app-backend.onrender.com/api';
 
 async function request(path, { method = 'GET', body, auth = true } = {}) {
   const headers = { 'Content-Type': 'application/json' };
