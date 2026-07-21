@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Point this at your backend. Use your machine's LAN IP (not localhost)
-// when testing on a physical device via Expo Go.
 export const API_BASE_URL = 'https://forex-app-backend.onrender.com/api';
 
 async function request(path, { method = 'GET', body, auth = true } = {}) {
@@ -42,6 +40,9 @@ export const api = {
   placeDemoOrder: (payload) => request('/demo/order', { method: 'POST', body: payload }),
   closeDemoPosition: (id) => request(`/demo/close/${id}`, { method: 'POST' }),
   getTradeHistory: () => request('/demo/history'),
+  getCandles: (pair, count = 50) => request(`/demo/candles?pair=${pair}&count=${count}`),
+  getPendingOrders: () => request('/demo/pending-orders'),
+  cancelPendingOrder: (id) => request(`/demo/pending-orders/${id}`, { method: 'DELETE' }),
 
   getWatchlist: () => request('/watchlist'),
   addToWatchlist: (pair) => request('/watchlist', { method: 'POST', body: { pair } }),
