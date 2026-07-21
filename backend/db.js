@@ -1,9 +1,5 @@
 const { Pool } = require('pg');
 
-// DATABASE_URL is provided automatically by Render/Railway when you attach
-// a Postgres database — no manual configuration needed on a properly set
-// up deployment. Falls back to a local Postgres for development if you
-// have one running.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/forex_app',
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
@@ -29,7 +25,21 @@ async function initSchema() {
       side TEXT NOT NULL,
       units NUMERIC NOT NULL,
       entry_price NUMERIC NOT NULL,
+      stop_loss NUMERIC,
+      take_profit NUMERIC,
       opened_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS pending_orders (
+      id UUID PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      pair TEXT NOT NULL,
+      side TEXT NOT NULL,
+      units NUMERIC NOT NULL,
+      target_price NUMERIC NOT NULL,
+      stop_loss NUMERIC,
+      take_profit NUMERIC,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     CREATE TABLE IF NOT EXISTS trade_history (
