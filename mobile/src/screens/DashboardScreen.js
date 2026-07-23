@@ -30,7 +30,7 @@ export default function DashboardScreen({ navigation }) {
   useEffect(() => {
     loadData();
     registerForPushNotifications();
-    const interval = setInterval(loadData, 4000); // simple polling for "live" prices
+    const interval = setInterval(loadData, 4000);
     return () => clearInterval(interval);
   }, [loadData]);
 
@@ -42,7 +42,7 @@ export default function DashboardScreen({ navigation }) {
 
   const placeOrder = async (pair, side) => {
     try {
-      await api.placeDemoOrder({ pair, side, units: 1000 });
+      await api.placeDemoOrder({ pair, side, units: 1000, orderType: 'market' });
       await loadData();
     } catch (err) {
       Alert.alert('Order failed', err.message);
@@ -119,7 +119,9 @@ export default function DashboardScreen({ navigation }) {
                 {watchlist.includes(pair) ? '★' : '☆'}
               </Text>
             </TouchableOpacity>
-            <Text style={[type.body, { flex: 1 }]}>{pair}</Text>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => navigation.navigate('Chart', { pair })}>
+              <Text style={type.body}>{pair}</Text>
+            </TouchableOpacity>
             <Text style={[type.mono, { marginRight: spacing.sm }]}>{price}</Text>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <TouchableOpacity style={styles.sellButton} onPress={() => placeOrder(pair, 'sell')}>
@@ -135,7 +137,7 @@ export default function DashboardScreen({ navigation }) {
           <>
             <Text style={[type.title, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>Open positions</Text>
             {positions.length === 0 ? (
-              <Text style={type.caption}>No open positions yet. Tap Buy or Sell above to practice.</Text>
+              <Text style={type.caption}>No open positions yet. Tap a pair name to chart it, or Buy/Sell for a quick market order.</Text>
             ) : (
               positions.map((p) => (
                 <View key={p.id} style={styles.positionRow}>
@@ -143,7 +145,11 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={type.body}>
                       {p.pair} · {p.side.toUpperCase()} · {p.units} units
                     </Text>
-                    <Text style={type.caption}>Entry {p.entryPrice}</Text>
+                    <Text style={type.caption}>
+                      Entry {p.entryPrice}
+                      {p.stopLoss ? ` · SL ${p.stopLoss}` : ''}
+                      {p.takeProfit ? ` · TP ${p.takeProfit}` : ''}
+                    </Text>
                   </View>
                   <TouchableOpacity onPress={() => closePosition(p.id)}>
                     <Text style={{ color: colors.accent }}>Close</Text>
