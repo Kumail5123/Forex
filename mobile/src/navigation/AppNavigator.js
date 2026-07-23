@@ -11,6 +11,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import BrokerConnectScreen from '../screens/BrokerConnectScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import ChartScreen from '../screens/ChartScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +40,7 @@ export default function AppNavigator() {
             <Stack.Screen name="BrokerConnect" component={BrokerConnectScreen} />
             <Stack.Screen name="Calendar" component={CalendarScreen} />
             <Stack.Screen name="History" component={HistoryScreen} />
+            <Stack.Screen name="Chart" component={ChartScreen} />
           </>
         ) : (
           <>
@@ -49,4 +51,4 @@ export default function AppNavigator() {
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
+          }
