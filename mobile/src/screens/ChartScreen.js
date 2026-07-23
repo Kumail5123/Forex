@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { api } from '../api/client';
 import { colors, spacing, type, radius } from '../theme/theme';
@@ -30,8 +30,9 @@ export default function ChartScreen({ route, navigation }) {
   const [candles, setCandles] = useState([]);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const candlesRef = useRef([]);
 
-  const [orderType, setOrderType] = useState('market'); // 'market' | 'limit'
+  const [orderType, setOrderType] = useState('market');
   const [side, setSide] = useState('buy');
   const [units, setUnits] = useState('1000');
   const [targetPrice, setTargetPrice] = useState('');
@@ -39,26 +40,50 @@ export default function ChartScreen({ route, navigation }) {
   const [takeProfit, setTakeProfit] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
+  // Load historical candles ONCE — this is the stable "shape" of the chart.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { candles: fresh } = await api.getCandles(pair, 40);
+        candlesRef.current = fresh;
+        setCandles(fresh);
+      } catch (err) {
+        Alert.alert('Error', err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [pair]);
+
+  // Poll live prices frequently and update just the LAST candle, so the
+  // chart visibly moves in real time without regenerating history.
+  const pollPrice = useCallback(async () => {
     try {
-      const [{ candles: fresh }, { prices }] = await Promise.all([
-        api.getCandles(pair, 40),
-        api.getDemoPrices(),
-      ]);
-      setCandles(fresh);
-      setCurrentPrice(prices[pair]);
+      const { prices } = await api.getDemoPrices();
+      const price = prices[pair];
+      if (!price || candlesRef.current.length === 0) return;
+
+      setCurrentPrice(price);
+
+      const updated = [...candlesRef.current];
+      const last = { ...updated[updated.length - 1] };
+      last.close = price;
+      last.high = Math.max(last.high, price);
+      last.low = Math.min(last.low, price);
+      updated[updated.length - 1] = last;
+
+      candlesRef.current = updated;
+      setCandles(updated);
     } catch (err) {
-      Alert.alert('Error', err.message);
-    } finally {
-      setIsLoading(false);
+      // Silent — a missed price tick shouldn't interrupt the chart.
     }
   }, [pair]);
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 5000);
+    pollPrice();
+    const interval = setInterval(pollPrice, 3000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [pollPrice]);
 
   const handleSubmit = async () => {
     const unitsNum = parseFloat(units);
@@ -99,9 +124,9 @@ export default function ChartScreen({ route, navigation }) {
     }
   };
 
-  const prices = candles.flatMap((c) => [c.high, c.low]);
-  const minPrice = prices.length ? Math.min(...prices) : 0;
-  const maxPrice = prices.length ? Math.max(...prices) : 1;
+  const allPrices = candles.flatMap((c) => [c.high, c.low]);
+  const minPrice = allPrices.length ? Math.min(...allPrices) : 0;
+  const maxPrice = allPrices.length ? Math.max(...allPrices) : 1;
 
   return (
     <ScrollView style={styles.container}>
@@ -109,6 +134,108 @@ export default function ChartScreen({ route, navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={{ color: colors.accent }}>← Back</Text>
         </TouchableOpacity>
+        <Text style={type.title}>{pair}</Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      {currentPrice ? <Text style={styles.currentPrice}>{currentPrice}</Text> : null}
+
+      {isLoading ? (
+        <ActivityIndicator color={colors.accent} style={{ marginVertical: spacing.xl }} />
+      ) : (
+        <View style={styles.chartArea}>
+          {candles.map((c, i) => (
+            <Candlestick key={i} candle={c} minPrice={minPrice} maxPrice={maxPrice} />
+          ))}
+        </View>
+      )}
+
+      <View style={styles.orderCard}>
+        <Text style={type.title}>Place order</Text>
+
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleButton, orderType === 'market' && styles.toggleButtonActive]}
+            onPress={() => setOrderType('market')}
+          >
+            <Text style={orderType === 'market' ? styles.toggleTextActive : styles.toggleText}>Market</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, orderType === 'limit' && styles.toggleButtonActive]}
+            onPress={() => setOrderType('limit')}
+          >
+            <Text style={orderType === 'limit' ? styles.toggleTextActive : styles.toggleText}>Limit</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleButton, side === 'buy' && { backgroundColor: colors.gain }]}
+            onPress={() => setSide('buy')}
+          >
+            <Text style={styles.toggleTextActive}>Buy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, side === 'sell' && { backgroundColor: colors.loss }]}
+            onPress={() => setSide('sell')}
+          >
+            <Text style={styles.toggleTextActive}>Sell</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.label}>Units</Text>
+        <TextInput style={styles.input} value={units} onChangeText={setUnits} keyboardType="numeric" />
+
+        {orderType === 'limit' && (
+          <>
+            <Text style={styles.label}>Target price (fills when reached)</Text>
+            <TextInput style={styles.input} value={targetPrice} onChangeText={setTargetPrice} keyboardType="numeric" placeholder={`e.g. ${currentPrice}`} placeholderTextColor={colors.textSecondary} />
+          </>
+        )}
+
+        <Text style={styles.label}>Stop-loss (optional)</Text>
+        <TextInput style={styles.input} value={stopLoss} onChangeText={setStopLoss} keyboardType="numeric" placeholder="Price to auto-close at a loss" placeholderTextColor={colors.textSecondary} />
+
+        <Text style={styles.label}>Take-profit (optional)</Text>
+        <TextInput style={styles.input} value={takeProfit} onChangeText={setTakeProfit} keyboardType="numeric" placeholder="Price to auto-close at a profit" placeholderTextColor={colors.textSecondary} />
+
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>{orderType === 'limit' ? 'Place limit order' : `${side === 'buy' ? 'Buy' : 'Sell'} now`}</Text>}
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: spacing.xl },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  currentPrice: { fontSize: 28, fontWeight: '700', color: colors.textPrimary, textAlign: 'center', marginBottom: spacing.md },
+  chartArea: {
+    height: CHART_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  candleColumn: { width: 8, height: CHART_HEIGHT, marginHorizontal: 1 },
+  wick: { position: 'absolute', width: 2, left: 3 },
+  body: { position: 'absolute', width: 8, borderRadius: 1 },
+  orderCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.xl },
+  toggleRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.xs },
+  toggleButton: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  toggleButtonActive: { backgroundColor: colors.accent },
+  toggleText: { color: colors.textSecondary, fontWeight: '600' },
+  toggleTextActive: { color: '#fff', fontWeight: '700' },
+  label: { color: colors.textSecondary, fontSize: 13, marginTop: spacing.md, marginBottom: spacing.xs },
+  input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.sm, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border },
+  submitButton: { backgroundColor: colors.accent, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.lg },
+  submitButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+});        </TouchableOpacity>
         <Text style={type.title}>{pair}</Text>
         <View style={{ width: 50 }} />
       </View>
