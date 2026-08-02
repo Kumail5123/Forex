@@ -15,6 +15,12 @@ async function initSchema() {
       demo_balance NUMERIC NOT NULL DEFAULT 10000,
       broker_connected BOOLEAN NOT NULL DEFAULT FALSE,
       expo_push_token TEXT,
+      first_name TEXT,
+      last_name TEXT,
+      date_of_birth DATE,
+      country TEXT,
+      address TEXT,
+      profile_submitted BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
@@ -82,6 +88,20 @@ async function initSchema() {
       raw JSONB,
       received_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `);
+
+  // Handles the case where these tables already existed from before this
+  // update — CREATE TABLE IF NOT EXISTS won't add new columns to a table
+  // that's already there, so we add them explicitly here too.
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth DATE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_submitted BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE demo_positions ADD COLUMN IF NOT EXISTS stop_loss NUMERIC;
+    ALTER TABLE demo_positions ADD COLUMN IF NOT EXISTS take_profit NUMERIC;
   `);
 }
 
