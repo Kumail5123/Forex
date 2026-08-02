@@ -15,11 +15,12 @@ const PAIRS = {
 };
 
 function priceWithJitter(base) {
-  const jitter = (Math.random() - 0.5) * base * 0.0006;
+  // Increased from 0.0006 to 0.0018 so tick-to-tick movement is visibly
+  // noticeable on the chart, not just technically present.
+  const jitter = (Math.random() - 0.5) * base * 0.0018;
   return Number((base + jitter).toFixed(5));
 }
 
-// --- Seeded random helpers, used only for generating stable-looking chart history ---
 function seedFromString(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
@@ -57,9 +58,6 @@ async function closePositionInternal(position, exitPrice, reason) {
   }
 }
 
-// Checks the requesting user's own pending limit orders and open positions
-// against fresh prices — fills limit orders that qualify, and auto-closes
-// positions that hit their stop-loss or take-profit.
 async function processFillsForUser(userId, prices) {
   const pending = await pool.query('SELECT * FROM pending_orders WHERE user_id = $1', [userId]);
   for (const order of pending.rows) {
@@ -99,7 +97,6 @@ async function processFillsForUser(userId, prices) {
   }
 }
 
-// GET /api/demo/prices
 router.get('/prices', requireAuth, async (req, res) => {
   const prices = Object.fromEntries(
     Object.entries(PAIRS).map(([pair, base]) => [pair, priceWithJitter(base)])
@@ -114,9 +111,6 @@ router.get('/prices', requireAuth, async (req, res) => {
   res.json({ prices });
 });
 
-// GET /api/demo/candles?pair=EURUSD&count=50
-// Generates realistic-looking historical candlestick data. Not real market
-// data — replace with a real price feed once connected to a live broker API.
 router.get('/candles', requireAuth, (req, res) => {
   const pair = req.query.pair;
   const count = Math.min(parseInt(req.query.count) || 50, 200);
@@ -130,7 +124,7 @@ router.get('/candles', requireAuth, (req, res) => {
   const candles = [];
   let price = base * (0.98 + rand() * 0.04);
   const now = Date.now();
-  const intervalMs = 60 * 60 * 1000; // 1 hour candles
+  const intervalMs = 60 * 60 * 1000;
 
   for (let i = count - 1; i >= 0; i--) {
     const open = price;
@@ -151,7 +145,6 @@ router.get('/candles', requireAuth, (req, res) => {
   res.json({ candles });
 });
 
-// GET /api/demo/positions
 router.get('/positions', requireAuth, async (req, res) => {
   const result = await pool.query('SELECT * FROM demo_positions WHERE user_id = $1 ORDER BY opened_at DESC', [req.userId]);
   const positions = result.rows.map((r) => ({
@@ -167,7 +160,6 @@ router.get('/positions', requireAuth, async (req, res) => {
   res.json({ positions });
 });
 
-// GET /api/demo/pending-orders
 router.get('/pending-orders', requireAuth, async (req, res) => {
   const result = await pool.query('SELECT * FROM pending_orders WHERE user_id = $1 ORDER BY created_at DESC', [req.userId]);
   const orders = result.rows.map((r) => ({
@@ -183,14 +175,11 @@ router.get('/pending-orders', requireAuth, async (req, res) => {
   res.json({ orders });
 });
 
-// DELETE /api/demo/pending-orders/:id
 router.delete('/pending-orders/:id', requireAuth, async (req, res) => {
   await pool.query('DELETE FROM pending_orders WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
   res.json({ cancelled: true });
 });
 
-// POST /api/demo/order
-// body: { pair, side, units, orderType: 'market'|'limit', targetPrice?, stopLoss?, takeProfit? }
 router.post('/order', requireAuth, async (req, res) => {
   const { pair, side, units, orderType = 'market', targetPrice, stopLoss, takeProfit } = req.body;
 
@@ -229,7 +218,6 @@ router.post('/order', requireAuth, async (req, res) => {
   });
 });
 
-// POST /api/demo/close/:positionId
 router.post('/close/:positionId', requireAuth, async (req, res) => {
   const posResult = await pool.query('SELECT * FROM demo_positions WHERE id = $1 AND user_id = $2', [req.params.positionId, req.userId]);
   const position = posResult.rows[0];
@@ -260,7 +248,6 @@ router.post('/close/:positionId', requireAuth, async (req, res) => {
   res.json({ closedPosition: { ...position, exitPrice, pnl }, demoBalance: newBalance });
 });
 
-// GET /api/demo/history
 router.get('/history', requireAuth, async (req, res) => {
   const result = await pool.query('SELECT * FROM trade_history WHERE user_id = $1 ORDER BY closed_at DESC LIMIT 100', [req.userId]);
   const history = result.rows.map((r) => ({
