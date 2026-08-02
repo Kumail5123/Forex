@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { colors, spacing, type, radius } from '../theme/theme';
 
 const CHART_HEIGHT = 220;
+const ZOOM_WINDOW = 15; // how many recent candles set the visible vertical range
 
 function Candlestick({ candle, minPrice, maxPrice }) {
   const range = maxPrice - minPrice || 1;
@@ -19,8 +20,8 @@ function Candlestick({ candle, minPrice, maxPrice }) {
 
   return (
     <View style={styles.candleColumn}>
-      <View style={[styles.wick, { top: wickTop, height: Math.max(1, wickBottom - wickTop), backgroundColor: color }]} />
-      <View style={[styles.body, { top: bodyTop, height: Math.max(2, bodyBottom - bodyTop), backgroundColor: color }]} />
+      <View style={[styles.wick, { top: Math.max(0, wickTop), height: Math.max(1, wickBottom - wickTop), backgroundColor: color }]} />
+      <View style={[styles.body, { top: Math.max(0, bodyTop), height: Math.max(2, bodyBottom - bodyTop), backgroundColor: color }]} />
     </View>
   );
 }
@@ -121,9 +122,17 @@ export default function ChartScreen({ route, navigation }) {
     }
   };
 
-  const allPrices = candles.flatMap((c) => [c.high, c.low]);
-  const minPrice = allPrices.length ? Math.min(...allPrices) : 0;
-  const maxPrice = allPrices.length ? Math.max(...allPrices) : 1;
+  // Scale the chart to the RECENT window instead of full history — this is
+  // what makes small tick-by-tick movement actually visible, the same way
+  // real trading charts auto-zoom rather than showing all-time range.
+  const recentCandles = candles.slice(-ZOOM_WINDOW);
+  const visiblePrices = recentCandles.flatMap((c) => [c.high, c.low]);
+  const minPrice = visiblePrices.length ? Math.min(...visiblePrices) : 0;
+  const maxPrice = visiblePrices.length ? Math.max(...visiblePrices) : 1;
+  // Small padding so candles don't touch the very top/bottom edge
+  const padding = (maxPrice - minPrice) * 0.1 || 0.0001;
+  const paddedMin = minPrice - padding;
+  const paddedMax = maxPrice + padding;
 
   return (
     <ScrollView style={styles.container}>
@@ -142,7 +151,7 @@ export default function ChartScreen({ route, navigation }) {
       ) : (
         <View style={styles.chartArea}>
           {candles.map((c, i) => (
-            <Candlestick key={i} candle={c} minPrice={minPrice} maxPrice={maxPrice} />
+            <Candlestick key={i} candle={c} minPrice={paddedMin} maxPrice={paddedMax} />
           ))}
         </View>
       )}
@@ -218,6 +227,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.lg,
+    overflow: 'hidden',
   },
   candleColumn: { width: 8, height: CHART_HEIGHT, marginHorizontal: 1 },
   wick: { position: 'absolute', width: 2, left: 3 },
